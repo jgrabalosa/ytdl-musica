@@ -1,8 +1,12 @@
 param([string]$Enlace)
 
+$Host.UI.RawUI.WindowTitle = 'YTDL - Descargando...'
+
 function Salir-ConError($mensaje) {
-    Write-Host "ERROR: $mensaje" -ForegroundColor Red
-    Read-Host "Pulsa Enter para cerrar"
+    $Host.UI.RawUI.WindowTitle = 'YTDL - Error'
+    Write-Host ""
+    Write-Host "  ERROR: $mensaje" -ForegroundColor Red
+    Read-Host "  Pulsa Enter para cerrar"
     exit 1
 }
 
@@ -16,16 +20,22 @@ if ($url -notmatch '^https://((www|m|music)\.)?youtube\.com/|^https://youtu\.be/
     Salir-ConError "Solo se aceptan URLs de YouTube: $url"
 }
 
-Write-Host "Categoria: $categoria"
-Write-Host "URL: $url"
-& "$PSScriptRoot\descargar.ps1" -Categoria $categoria -Url $url
+Write-Host ""
+Write-Host "  ==============================================" -ForegroundColor Cyan
+Write-Host "    YTDL - Descarga de audio" -ForegroundColor Cyan
+Write-Host "  ==============================================" -ForegroundColor Cyan
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Listo." -ForegroundColor Green
+& "$PSScriptRoot\descargar.ps1" -Categoria $categoria -Url $url
+$codigo = $LASTEXITCODE
+
+if ($codigo -eq 0) {
+    $Host.UI.RawUI.WindowTitle = 'YTDL - Listo'
+    Write-Host "  LISTO. Se cierra en 3 segundos..." -ForegroundColor Green
     Start-Sleep -Seconds 3
-} elseif ($LASTEXITCODE -eq 2) {
-    Write-Host "No se ha descargado nada." -ForegroundColor Yellow
+} elseif ($codigo -eq 2) {
+    $Host.UI.RawUI.WindowTitle = 'YTDL - Sin cambios'
+    Write-Host "  No se ha descargado nada. Se cierra en 3 segundos..." -ForegroundColor Yellow
     Start-Sleep -Seconds 3
 } else {
-    Salir-ConError "La descarga fallo (codigo $LASTEXITCODE)"
+    Salir-ConError "La descarga fallo (codigo $codigo)"
 }

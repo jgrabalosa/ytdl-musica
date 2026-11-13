@@ -78,6 +78,7 @@ YouTube (botón) → ytdl:<categoria>?url=... → abrir.cmd → protocolo.ps1 �
 | Las descargas dejan de funcionar en general | Actualizar a mano: `winget upgrade --id yt-dlp.yt-dlp -e` y `winget upgrade --id DenoLand.Deno -e` |
 | El botón no hace nada | Comprobar `Get-ItemProperty 'HKCU:\Software\Classes\ytdl\shell\open\command'`. Si `(default)` está vacío, ejecutar `instalar.ps1`. |
 | `WinError 32` (archivo en uso) | Comprobar que la línea de yt-dlp en `descargar.ps1` conserva `-P "temp:$env:TEMP\ytdl"`. |
+| El antivirus bloquea o pone en cuarentena `protocolo.ps1` | Revisar el código y añadir una excepción para la carpeta `YTDL` (con "Examinar"). Si después el registro `ytdl:` queda vacío y no deja escribirlo, reiniciar el PC y ejecutar `instalar.ps1`. |
 
 ## 📝 Notas de diseño
 

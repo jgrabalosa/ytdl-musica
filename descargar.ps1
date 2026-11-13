@@ -3,57 +3,71 @@ param(
     [Parameter(Mandatory)][string]$Url
 )
 
-$base = Join-Path $env:USERPROFILE 'Music\YouTube'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+$musica = Join-Path $env:USERPROFILE 'Music'
+$base = Join-Path $musica 'YouTube'
 $limitePodcast = 1800   # 30 minutos, en segundos
 $registro = Join-Path $PSScriptRoot 'descargados.txt'
 $calidad = @('--audio-quality', '0')   # maxima calidad (musica y sesiones)
+$linea = '  ' + ('-' * 46)
 
-# 1. Consultar id y duracion del video
-Write-Host "Consultando video..."
-$info = yt-dlp --no-playlist --print "%(id)s|%(duration)s" $Url | Select-Object -Last 1
-$partes = "$info" -split '\|'
+# 1. Consultar id, duracion y titulo del video
+Write-Host "  Consultando video..." -ForegroundColor DarkGray
+$info = yt-dlp --no-playlist --no-warnings --encoding utf-8 --print "%(id)s|%(duration)s|%(title)s" $Url | Select-Object -Last 1
+$partes = "$info" -split '\|', 3
 $id = $partes[0]
+$titulo = $partes[2]
 if (-not $id) {
-    Write-Host "No se pudo consultar el video." -ForegroundColor Red
+    Write-Host "  No se pudo consultar el video." -ForegroundColor Red
     exit 1
 }
 
-# 2. Avisar si ya se descargo antes
-if (Test-Path $registro) {
-    $previo = Get-Content $registro -Encoding UTF8 | Where-Object { $_ -like "$id`t*" } | Select-Object -First 1
-    if ($previo) {
-        $campos = $previo -split "`t"
-        Write-Host ""
-        Write-Host "AVISO: este video ya se descargo el $($campos[1])" -ForegroundColor Yellow
-        Write-Host "Carpeta: $($campos[2])" -ForegroundColor Yellow
-        $respuesta = Read-Host "Descargar de nuevo? (s/N)"
-        if ($respuesta -ne 's') { exit 2 }
-    }
-}
-
-# 3. Elegir carpeta
+# 2. Elegir carpeta y calidad
 switch ($Categoria) {
-    'sesion'  { $destino = Join-Path $base 'Sesiones' }
-    'musica'  { $destino = Join-Path $base 'Musica' }
+    'sesion'  { $destino = Join-Path $base 'Sesiones'; $tipo = 'Sesion' }
+    'musica'  { $destino = Join-Path $base 'Musica';   $tipo = 'Musica' }
     'podcast' {
         $segundos = 0
-        if ([double]::TryParse($partes[1], [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$segundos) -and $segundos -lt $limitePodcast) {
-            $destino = Join-Path $base 'Podcasts\Cortos'
+        $leido = [double]::TryParse($partes[1], [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$segundos)
+        if ($leido -and $segundos -lt $limitePodcast) {
+            $destino = Join-Path $base 'Podcasts\Cortos'; $tipo = 'Podcast corto'
         } else {
-            $destino = Join-Path $base 'Podcasts\Largos'
+            $destino = Join-Path $base 'Podcasts\Largos'; $tipo = 'Podcast largo'
         }
-        Write-Host "Duracion: $([math]::Round($segundos / 60)) min"
+        if ($leido) { $tipo += " ($([math]::Round($segundos / 60)) min)" }
         # Voz: 64 kbps mono y sin trozos patrocinados (SponsorBlock)
         $calidad = @('--audio-quality', '64K', '--postprocessor-args', 'ExtractAudio:-ac 1', '--sponsorblock-remove', 'sponsor,selfpromo,interaction')
     }
 }
+$carpeta = $destino.Replace($musica + '\', '')
 
+Write-Host "  Titulo : $titulo"
+Write-Host "  Tipo   : $tipo"
+Write-Host "  Carpeta: $carpeta"
+Write-Host $linea -ForegroundColor DarkCyan
+
+# 3. Avisar si ya se descargo antes
+if (Test-Path $registro) {
+    $previo = Get-Content $registro -Encoding UTF8 | Where-Object { $_ -like "$id`t*" } | Select-Object -First 1
+    if ($previo) {
+        $campos = $previo -split "`t"
+        Write-Host "  AVISO: ya lo descargaste el $($campos[1])" -ForegroundColor Yellow
+        Write-Host "  Esta en: $($campos[2].Replace($musica + '\', ''))" -ForegroundColor Yellow
+        $respuesta = Read-Host "  Descargar de nuevo? (s/N)"
+        if ($respuesta -ne 's') {
+            Write-Host $linea -ForegroundColor DarkCyan
+            exit 2
+        }
+    }
+}
+
+# 4. Descargar (solo se ve la barra de progreso; los errores se siguen mostrando)
 New-Item -ItemType Directory -Force -Path $destino | Out-Null
-Write-Host "Destino: $destino"
-
-# 4. Descargar
-yt-dlp -x --audio-format mp3 @calidad --embed-thumbnail --embed-metadata --no-playlist -P $destino -P "temp:$env:TEMP\ytdl" -o "%(title)s.%(ext)s" $Url
+Write-Host "  Descargando y convirtiendo..." -ForegroundColor DarkGray
+yt-dlp -q --progress -x --audio-format mp3 @calidad --embed-thumbnail --embed-metadata --no-playlist -P $destino -P "temp:$env:TEMP\ytdl" -o "%(title)s.%(ext)s" $Url
 $codigo = $LASTEXITCODE
+Write-Host $linea -ForegroundColor DarkCyan
 
 # 5. Apuntar en el registro si fue bien
 if ($codigo -eq 0) {
